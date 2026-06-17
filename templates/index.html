@@ -1,0 +1,935 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>金匮 · 财务看板</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+    <style>
+        /* ============================================
+           Design Tokens
+           ============================================ */
+        :root {
+            --bg-base: #f5f3ef;
+            --bg-elevated: #ffffff;
+            --border-subtle: #e6e2dc;
+            --border-accent: rgba(180, 140, 100, 0.25);
+            --text-primary: #1c1b1a;
+            --text-secondary: #6b6560;
+            --text-dim: #a39e99;
+            --accent: #b88c5e;
+            --accent-soft: rgba(184, 140, 94, 0.10);
+            --positive: #3a9d5e;
+            --positive-soft: rgba(58, 157, 94, 0.08);
+            --negative: #c65d4a;
+            --negative-soft: rgba(198, 93, 74, 0.08);
+            --font-body: 'Inter', 'PingFang SC', 'Microsoft YaHei', 'Noto Sans SC', -apple-system, sans-serif;
+            --font-mono: 'JetBrains Mono', 'Inter', 'PingFang SC', monospace;
+            --radius: 16px;
+            --radius-sm: 10px;
+            --shadow-card: 0 1px 3px rgba(0,0,0,0.04), 0 4px 12px rgba(0,0,0,0.04);
+            --shadow-hover: 0 2px 8px rgba(0,0,0,0.06), 0 8px 24px rgba(0,0,0,0.06);
+            --transition: 0.25s cubic-bezier(0.22, 1, 0.36, 1);
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html { -webkit-font-smoothing: antialiased; }
+        body { font-family: var(--font-body); background: var(--bg-base); color: var(--text-primary); min-height: 100vh; line-height: 1.6; }
+        ::selection { background: var(--accent-soft); color: var(--accent); }
+
+        /* ============================================
+           Header
+           ============================================ */
+        .header {
+            padding: 16px 40px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: var(--bg-elevated);
+            border-bottom: 1px solid var(--border-subtle);
+        }
+        .header-brand { display: flex; align-items: center; gap: 10px; }
+        .header-brand .mark { width: 7px; height: 7px; background: var(--accent); border-radius: 50%; }
+        .header-brand h1 { font-size: 17px; font-weight: 600; letter-spacing: 0.02em; }
+        .header-updated { font-size: 13px; color: var(--text-dim); display: flex; align-items: center; gap: 6px; }
+        .header-updated .dot {
+            width: 5px; height: 5px; border-radius: 50%;
+            background: var(--positive); display: inline-block;
+            animation: pulse-dot 2s ease-in-out infinite;
+        }
+        @keyframes pulse-dot { 0%,100%{opacity:.3} 50%{opacity:1} }
+
+        /* ============================================
+           Tab Bar
+           ============================================ */
+        .tab-bar {
+            display: flex; gap: 0;
+            background: var(--bg-elevated);
+            border-bottom: 1px solid var(--border-subtle);
+            padding: 0 40px;
+        }
+        .tab-btn {
+            padding: 12px 24px;
+            border: none; background: none;
+            font-family: var(--font-body);
+            font-size: 14px; font-weight: 500;
+            color: var(--text-dim);
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            transition: all var(--transition);
+        }
+        .tab-btn:hover { color: var(--text-secondary); }
+        .tab-btn.active { color: var(--text-primary); border-bottom-color: var(--accent); }
+
+        /* ============================================
+           Container
+           ============================================ */
+        .container { max-width: 1440px; margin: 0 auto; padding: 28px 40px 60px; }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+
+        /* ============================================
+           Dashboard (Tab 1) — same as before
+           ============================================ */
+        .hero { margin-bottom: 24px; }
+        .hero-card {
+            background: var(--bg-elevated); border: 1px solid var(--border-accent);
+            border-radius: var(--radius); padding: 28px 32px; box-shadow: var(--shadow-card);
+        }
+        .hero-label { font-size: 13px; font-weight: 500; color: var(--accent); letter-spacing: 0.06em; margin-bottom: 6px; }
+        .hero-main { display: flex; align-items: flex-end; gap: 24px; flex-wrap: wrap; }
+        .hero-number { font-family: var(--font-body); font-size: 52px; font-weight: 700; line-height: 1; letter-spacing: -0.04em; }
+        .hero-number .currency { font-size: 26px; font-weight: 400; color: var(--text-dim); margin-right: 2px; }
+        .hero-meta { display: flex; align-items: center; gap: 18px; padding-bottom: 6px; flex-wrap: wrap; }
+        .hero-meta-item { display: flex; align-items: center; gap: 5px; font-size: 14px; font-weight: 500; }
+        .hero-meta-item .value { font-family: var(--font-mono); font-weight: 600; }
+        .hero-meta-item .icon { font-size: 15px; }
+        .hero-meta-item.up { color: var(--positive); }
+        .hero-meta-item.down { color: var(--negative); }
+        .hero-meta-date { font-size: 13px; color: var(--text-dim); padding-bottom: 6px; margin-left: auto; }
+        .hero-sublabel { font-size: 13px; color: var(--text-dim); margin-top: 8px; }
+        .hero-sublabel .value { font-family: var(--font-mono); color: var(--text-secondary); }
+        @media (max-width:640px) { .hero-number{font-size:34px} .hero-card{padding:20px} .hero-meta-date{margin-left:0} }
+
+        .stats { display: grid; grid-template-columns: repeat(4,1fr); gap: 12px; margin-bottom: 28px; }
+        .stat-card {
+            background: var(--bg-elevated); border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-sm); padding: 18px 20px; box-shadow: var(--shadow-card);
+            transition: all var(--transition); cursor: default;
+        }
+        .stat-card:hover { box-shadow: var(--shadow-hover); transform: translateY(-2px); }
+        .stat-card .label { font-size: 12px; font-weight: 500; color: var(--text-secondary); margin-bottom: 4px; display: flex; align-items: center; gap: 6px; }
+        .stat-card .label .indicator { width: 6px; height: 6px; border-radius: 50%; display: inline-block; }
+        .stat-card .label .indicator.gold { background: var(--accent); }
+        .stat-card .label .indicator.green { background: var(--positive); }
+        .stat-card .label .indicator.red { background: var(--negative); }
+        .stat-card .label .indicator.teal { background: #5a8a9e; }
+        .stat-card .value { font-family: var(--font-mono); font-size: 23px; font-weight: 600; letter-spacing: -0.02em; line-height: 1.2; }
+        .stat-card .sub { font-size: 12px; margin-top: 4px; font-weight: 500; }
+        .stat-card .sub.up { color: var(--positive); }
+        .stat-card .sub.down { color: var(--negative); }
+        @media (max-width:900px) { .stats{grid-template-columns:repeat(2,1fr)} }
+        @media (max-width:480px) { .stats{grid-template-columns:1fr} .container{padding:14px} .header{padding:12px 16px} .tab-bar{padding:0 16px} }
+
+        .filters { display: flex; align-items: center; gap: 12px; margin-bottom: 22px; flex-wrap: wrap; }
+        .filters-label { font-size: 13px; color: var(--text-dim); font-weight: 500; }
+        .filter-pill {
+            padding: 4px 14px; border-radius: 16px; border: 1px solid var(--border-subtle);
+            background: var(--bg-elevated); color: var(--text-secondary);
+            cursor: pointer; font-family: var(--font-body); font-size: 13px; font-weight: 500;
+            transition: all var(--transition); user-select: none;
+        }
+        .filter-pill:hover { border-color: var(--accent); color: var(--accent); }
+        .filter-pill.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+        .charts-grid { display: grid; gap: 12px; }
+        .charts-row { display: grid; grid-template-columns: 1.8fr 1fr; gap: 12px; }
+        .charts-row-full { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+        .chart-card {
+            background: var(--bg-elevated); border: 1px solid var(--border-subtle);
+            border-radius: var(--radius); padding: 18px 18px 10px; box-shadow: var(--shadow-card);
+        }
+        .chart-card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; padding: 0 2px; }
+        .chart-card-header h3 { font-size: 14px; font-weight: 500; color: var(--text-secondary); }
+        .chart-card-header .badge { font-size: 11px; color: var(--text-dim); font-family: var(--font-mono); background: var(--bg-base); padding: 2px 10px; border-radius: 8px; }
+        .chart-plot { width: 100%; height: 340px; }
+        @media (max-width:960px) { .charts-row,.charts-row-full{grid-template-columns:1fr} }
+
+        /* ============================================
+           Goals (Tab 2)
+           ============================================ */
+        .goals-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
+        .goals-header h2 { font-size: 18px; font-weight: 600; }
+        .btn-primary {
+            padding: 8px 20px; border-radius: 8px; border: none;
+            background: var(--accent); color: #fff;
+            font-family: var(--font-body); font-size: 14px; font-weight: 500;
+            cursor: pointer; transition: background var(--transition);
+        }
+        .btn-primary:hover { background: #a67a4e; }
+        .btn-secondary {
+            padding: 6px 14px; border-radius: 6px; border: 1px solid var(--border-subtle);
+            background: var(--bg-elevated); color: var(--text-secondary);
+            font-family: var(--font-body); font-size: 12px; cursor: pointer;
+        }
+        .btn-secondary:hover { border-color: var(--text-dim); color: var(--text-primary); }
+        .goals-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; }
+        .goal-card {
+            background: var(--bg-elevated); border: 1px solid var(--border-subtle);
+            border-radius: var(--radius); padding: 24px; box-shadow: var(--shadow-card);
+            transition: box-shadow var(--transition);
+        }
+        .goal-card:hover { box-shadow: var(--shadow-hover); }
+        .goal-card-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px; }
+        .goal-card-header h3 { font-size: 16px; font-weight: 600; }
+        .goal-card-header .goal-date { font-size: 12px; color: var(--text-dim); }
+        .goal-metric { font-size: 12px; color: var(--text-secondary); margin-bottom: 12px; }
+        .goal-progress-ring {
+            display: flex; align-items: center; gap: 20px;
+        }
+        .goal-progress-ring canvas { width: 72px; height: 72px; flex-shrink: 0; }
+        .goal-details { flex: 1; }
+        .goal-details .current { font-size: 22px; font-weight: 700; font-family: var(--font-mono); }
+        .goal-details .target { font-size: 13px; color: var(--text-secondary); }
+        .goal-details .target span { font-family: var(--font-mono); }
+        .goal-progress-text { font-size: 13px; font-weight: 500; margin-top: 4px; }
+        .goal-progress-text.on-track { color: var(--positive); }
+        .goal-progress-text.behind { color: var(--negative); }
+        .goal-card-actions { display: flex; gap: 8px; margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--border-subtle); }
+        .goal-empty {
+            grid-column: 1 / -1; text-align: center; padding: 60px 20px;
+            color: var(--text-dim); font-size: 15px;
+        }
+        .goal-empty .icon { font-size: 40px; margin-bottom: 12px; }
+
+        /* Modal */
+        .modal-overlay {
+            position: fixed; inset: 0; background: rgba(0,0,0,0.3);
+            display: flex; align-items: center; justify-content: center;
+            z-index: 1000; opacity: 0; pointer-events: none;
+            transition: opacity 0.2s;
+        }
+        .modal-overlay.open { opacity: 1; pointer-events: auto; }
+        .modal {
+            background: var(--bg-elevated); border-radius: var(--radius);
+            padding: 32px; width: 420px; max-width: 90vw;
+            box-shadow: 0 16px 48px rgba(0,0,0,0.12);
+        }
+        .modal h3 { font-size: 18px; font-weight: 600; margin-bottom: 20px; }
+        .form-group { margin-bottom: 16px; }
+        .form-group label { display: block; font-size: 13px; font-weight: 500; color: var(--text-secondary); margin-bottom: 4px; }
+        .form-group input, .form-group select {
+            width: 100%; padding: 8px 12px; border-radius: 8px;
+            border: 1px solid var(--border-subtle); background: var(--bg-base);
+            font-family: var(--font-body); font-size: 14px; color: var(--text-primary);
+        }
+        .form-group input:focus, .form-group select:focus {
+            outline: none; border-color: var(--accent);
+        }
+        .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 24px; }
+        .modal-actions .btn-cancel {
+            padding: 8px 16px; border-radius: 8px; border: 1px solid var(--border-subtle);
+            background: transparent; color: var(--text-secondary);
+            cursor: pointer; font-family: var(--font-body); font-size: 14px;
+        }
+
+        /* ============================================
+           Reports (Tab 3)
+           ============================================ */
+        .report-selector { display: flex; gap: 12px; align-items: center; margin-bottom: 24px; flex-wrap: wrap; }
+        .report-selector select, .report-selector .rbtn {
+            padding: 8px 14px; border-radius: 8px; border: 1px solid var(--border-subtle);
+            background: var(--bg-elevated); font-family: var(--font-body);
+            font-size: 14px; color: var(--text-primary); cursor: pointer;
+        }
+        .report-selector .rbtn {
+            border: none; background: var(--accent); color: #fff; font-weight: 500;
+        }
+        .report-selector .rbtn:hover { background: #a67a4e; }
+
+        .report-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; margin-bottom: 28px; }
+        .report-card {
+            background: var(--bg-elevated); border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-sm); padding: 20px; box-shadow: var(--shadow-card);
+        }
+        .report-card .rlabel { font-size: 12px; color: var(--text-dim); margin-bottom: 4px; }
+        .report-card .rvalue { font-size: 24px; font-weight: 700; font-family: var(--font-mono); letter-spacing: -0.02em; }
+        .report-card .rsub { font-size: 12px; margin-top: 2px; }
+        .report-card .rsub.green { color: var(--positive); }
+        .report-card .rsub.red { color: var(--negative); }
+        .report-card .rsub.amber { color: var(--accent); }
+
+        .report-detail { background: var(--bg-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius); padding: 24px; box-shadow: var(--shadow-card); margin-bottom: 20px; }
+        .report-detail h3 { font-size: 15px; font-weight: 600; margin-bottom: 16px; color: var(--text-secondary); }
+        .report-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+        .report-table th { text-align: left; font-weight: 500; color: var(--text-dim); font-size: 12px; padding: 8px 12px; border-bottom: 1px solid var(--border-subtle); }
+        .report-table td { padding: 8px 12px; border-bottom: 1px solid var(--border-subtle); font-family: var(--font-mono); font-size: 13px; }
+        .report-table tr:last-child td { border-bottom: none; }
+
+        .report-section-title { font-size: 16px; font-weight: 600; margin: 28px 0 16px; }
+        .yoy-chart { width: 100%; height: 320px; }
+
+        .empty-state { text-align: center; padding: 60px; color: var(--text-dim); }
+
+        /* ============================================
+           Shared
+           ============================================ */
+        @keyframes shimmer { 0%{background-position:-200% center} 100%{background-position:200% center} }
+        .counting {
+            background: linear-gradient(90deg, var(--text-primary) 0%, var(--accent) 40%, var(--text-primary) 100%);
+            background-size: 200% auto; -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+            background-clip: text; animation: shimmer 1.2s ease-out forwards;
+        }
+        ::-webkit-scrollbar { width: 5px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: var(--border-subtle); border-radius: 3px; }
+    </style>
+</head>
+<body>
+
+    <!-- ============ HEADER ============ -->
+    <header class="header">
+        <div class="header-brand">
+            <span class="mark"></span>
+            <h1>金匮</h1>
+        </div>
+        <div class="header-updated">
+            <span class="dot"></span>
+            <span id="updateTime">加载中…</span>
+        </div>
+    </header>
+
+    <!-- ============ TAB BAR ============ -->
+    <nav class="tab-bar">
+        <button class="tab-btn active" data-tab="dashboard">📊 看板</button>
+        <button class="tab-btn" data-tab="goals">🎯 目标</button>
+        <button class="tab-btn" data-tab="reports">📋 报表</button>
+    </nav>
+
+    <main class="container">
+
+        <!-- ====== TAB 1: Dashboard ====== -->
+        <div class="tab-content active" id="tab-dashboard">
+            <section class="hero">
+                <div class="hero-card">
+                    <div class="hero-label">净资产 · Net Worth</div>
+                    <div class="hero-main">
+                        <div class="hero-number"><span class="currency">¥</span><span id="heroNwValue">--</span></div>
+                        <div class="hero-meta">
+                            <span class="hero-meta-item" id="heroChange"><span class="icon">↑</span><span class="value">--</span><span>环比</span></span>
+                            <span class="hero-meta-item up" id="heroIncome"><span class="icon">+</span><span class="value">--</span><span>收入</span></span>
+                            <span class="hero-meta-item down" id="heroExpense"><span class="icon">−</span><span class="value">--</span><span>支出</span></span>
+                        </div>
+                        <div class="hero-meta-date" id="heroDate">--</div>
+                    </div>
+                    <div class="hero-sublabel" id="heroBudget">预算 <span class="value">--</span><span id="heroBudgetDiff"></span></div>
+                </div>
+            </section>
+
+            <div class="stats">
+                <div class="stat-card"><div class="label"><span class="indicator teal"></span>总资产</div><div class="value" id="cardAssets">--</div><div class="sub" id="cardAssetsSub"></div></div>
+                <div class="stat-card"><div class="label"><span class="indicator red"></span>总负债</div><div class="value" id="cardLiabilities">--</div><div class="sub" id="cardLiabilitiesSub"></div></div>
+                <div class="stat-card"><div class="label"><span class="indicator green"></span>本月收入</div><div class="value" id="cardIncome">--</div><div class="sub up" id="cardIncomeSub">实际收入</div></div>
+                <div class="stat-card"><div class="label"><span class="indicator gold"></span>本月预算</div><div class="value" id="cardExpense">--</div><div class="sub" id="cardBudgetSub">计划支出</div></div>
+            </div>
+
+            <div class="filters"><span class="filters-label">年份</span><div id="yearFilters"></div></div>
+
+            <div class="charts-grid">
+                <div class="charts-row">
+                    <div class="chart-card"><div class="chart-card-header"><h3>净资产趋势</h3><span class="badge" id="trendBadge">--</span></div><div class="chart-plot" id="chartTrend"></div></div>
+                    <div class="chart-card"><div class="chart-card-header"><h3>资产构成</h3><span class="badge" id="pieBadge">当月</span></div><div class="chart-plot" id="chartPie"></div></div>
+                </div>
+                <div class="charts-row-full">
+                    <div class="chart-card"><div class="chart-card-header"><h3>收支分析</h3><span class="badge">收入 vs 支出</span></div><div class="chart-plot" id="chartCashflow"></div></div>
+                    <div class="chart-card"><div class="chart-card-header"><h3>月度净资产变化</h3><span class="badge">环比</span></div><div class="chart-plot" id="chartMonthly"></div></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ====== TAB 2: Goals ====== -->
+        <div class="tab-content" id="tab-goals">
+            <div class="goals-header">
+                <h2>财务目标</h2>
+                <button class="btn-primary" onclick="showGoalModal()">+ 添加目标</button>
+            </div>
+            <div class="goals-grid" id="goalsContainer">
+                <div class="goal-empty"><div class="icon">🎯</div><p>还没有财务目标，点击上方添加</p></div>
+            </div>
+        </div>
+
+        <!-- ====== TAB 3: Reports ====== -->
+        <div class="tab-content" id="tab-reports">
+            <div class="report-selector">
+                <select id="reportYearSelect"></select>
+                <select id="reportMonthSelect">
+                    <option value="1">1月</option><option value="2">2月</option><option value="3">3月</option>
+                    <option value="4">4月</option><option value="5">5月</option><option value="6">6月</option>
+                    <option value="7">7月</option><option value="8">8月</option><option value="9">9月</option>
+                    <option value="10">10月</option><option value="11">11月</option><option value="12">12月</option>
+                </select>
+                <button class="rbtn" onclick="loadMonthlyReport()">查看月度报告</button>
+                <button class="rbtn" onclick="loadAnnualReport()" style="background:var(--text-secondary)">查看年度报告</button>
+            </div>
+
+            <div id="reportContent">
+                <div class="empty-state"><p>选择月份或年份查看财务报告</p></div>
+            </div>
+
+            <h3 class="report-section-title" id="yoyTitle" style="display:none">年度对比</h3>
+            <div class="chart-card" id="yoyCard" style="display:none">
+                <div class="chart-plot" id="chartYoY" style="height:320px"></div>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- ============ GOAL MODAL ============ -->
+    <div class="modal-overlay" id="goalModal">
+        <div class="modal">
+            <h3 id="goalModalTitle">添加目标</h3>
+            <div class="form-group">
+                <label>目标名称</label>
+                <input id="goalName" placeholder="例如: 存款 50 万" maxlength="40">
+            </div>
+            <div class="form-group">
+                <label>指标类型</label>
+                <select id="goalMetric">
+                    <option value="net_worth">净资产</option>
+                    <option value="total_assets">总资产</option>
+                    <option value="total_liabilities">总负债</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>目标金额 (¥)</label>
+                <input id="goalTarget" type="number" min="0" step="1000" placeholder="500000">
+            </div>
+            <div class="form-group">
+                <label>目标日期</label>
+                <input id="goalDate" type="date">
+            </div>
+            <div class="form-group">
+                <label>备注</label>
+                <input id="goalNote" placeholder="可选" maxlength="100">
+            </div>
+            <div class="modal-actions">
+                <button class="btn-cancel" onclick="closeGoalModal()">取消</button>
+                <button class="btn-primary" onclick="saveGoal()">保存</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    // ======================================================
+    //  State
+    // ======================================================
+    let fullData = null;
+    let selectedYears = new Set();
+    let trendChart, pieChart, cashflowChart, monthlyChart, yoyChart;
+    let editingGoalId = null;
+
+    // ======================================================
+    //  Tab switching
+    // ======================================================
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            btn.classList.add('active');
+            document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+            // Lazy load
+            if (btn.dataset.tab === 'goals') loadGoals();
+            if (btn.dataset.tab === 'reports') loadReportsTab();
+            // Resize charts after tab switch
+            setTimeout(() => { trendChart?.resize(); pieChart?.resize(); cashflowChart?.resize(); monthlyChart?.resize(); yoyChart?.resize(); }, 100);
+        });
+    });
+
+    // ======================================================
+    //  Formatting
+    // ======================================================
+    function fmt(n) {
+        if (n == null || isNaN(n)) return '--';
+        const abs = Math.abs(n);
+        if (abs >= 1e8) return (n / 1e8).toFixed(2) + ' 亿';
+        if (abs >= 1e4) return (n / 1e4).toFixed(2) + ' 万';
+        return n.toLocaleString('zh-CN', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+    }
+    function fmtShort(n) {
+        if (n == null || isNaN(n)) return '--';
+        const abs = Math.abs(n);
+        if (abs >= 1e8) return (n / 1e8).toFixed(1) + '亿';
+        if (abs >= 1e4) return (n / 1e4).toFixed(1) + 'w';
+        return n.toLocaleString('zh-CN', {maximumFractionDigits: 0});
+    }
+    function fmtRaw(n) {
+        if (n == null || isNaN(n)) return '--';
+        return n.toLocaleString('zh-CN', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+    }
+    function fmtNetChange(ch) {
+        if (ch == null || isNaN(ch)) return '--';
+        return (ch >= 0 ? '+' : '') + fmt(ch);
+    }
+
+    // ======================================================
+    //  Data Loading
+    // ======================================================
+    async function loadData() {
+        try {
+            const resp = await fetch('/api/full_data');
+            const json = await resp.json();
+            if (!json.ok) { document.getElementById('updateTime').textContent = '加载失败'; return; }
+            fullData = json.data;
+
+            const container = document.getElementById('yearFilters');
+            container.innerHTML = '';
+            fullData.years.forEach(y => selectedYears.add(y));
+            fullData.years.forEach(y => {
+                const pill = document.createElement('button');
+                pill.className = 'filter-pill active';
+                pill.textContent = y;
+                pill.onclick = () => {
+                    if (selectedYears.has(y)) { if (selectedYears.size <= 1) return; selectedYears.delete(y); pill.classList.remove('active'); }
+                    else { selectedYears.add(y); pill.classList.add('active'); }
+                    updateCharts();
+                };
+                container.appendChild(pill);
+            });
+
+            updateHero(); updateStats(); updateCharts();
+            document.getElementById('updateTime').textContent = '最新数据 ' + (fullData.monthly[fullData.latest_idx]?.date || '--');
+        } catch (e) { document.getElementById('updateTime').textContent = '网络错误'; }
+    }
+
+    // ======================================================
+    //  Hero & Stats
+    // ======================================================
+    function updateHero() {
+        const m = fullData.monthly[fullData.latest_idx]; if (!m) return;
+        animateNumber(document.getElementById('heroNwValue'), m.net_worth);
+        document.getElementById('heroDate').textContent = m.date;
+        const changeEl = document.getElementById('heroChange');
+        if (m.net_worth_change != null) {
+            const ch = m.net_worth_change;
+            changeEl.className = 'hero-meta-item ' + (ch >= 0 ? 'up' : 'down');
+            changeEl.innerHTML = `<span class="icon">${ch >= 0 ? '↑' : '↓'}</span><span class="value">${fmt(Math.abs(ch))}</span><span>环比</span>`;
+        } else { changeEl.innerHTML = `<span style="color:var(--text-dim)">--</span>`; }
+        ['Income', 'Expense'].forEach(t => {
+            const el = document.getElementById('hero' + t);
+            const val = t === 'Income' ? m.income : m.actual_expense;
+            if (val != null) { el.style.display = ''; el.innerHTML = `<span class="icon">${t==='Income'?'+':'−'}</span><span class="value">${fmt(val)}</span><span>${t==='Income'?'收入':'支出'}</span>`; }
+            else { el.style.display = 'none'; }
+        });
+        const budgetEl = document.getElementById('heroBudget');
+        if (m.actual_expense != null && m.planned_expense != null) {
+            const diff = m.actual_expense - m.planned_expense;
+            const cls = diff > 0 ? 'negative' : 'positive';
+            budgetEl.innerHTML = `预算 <span class="value">${fmt(m.planned_expense)}</span><span style="margin-left:8px;font-weight:500;color:var(--${cls})">${diff > 0 ? '超' : '节余'} ${fmt(Math.abs(diff))}</span>`;
+        } else if (m.planned_expense != null) { budgetEl.innerHTML = `预算 <span class="value">${fmt(m.planned_expense)}</span>`; }
+        else { budgetEl.textContent = ''; }
+    }
+
+    function updateStats() {
+        const m = fullData.monthly[fullData.latest_idx]; if (!m) return;
+        animateNumber(document.getElementById('cardAssets'), m.total_assets);
+        animateNumber(document.getElementById('cardLiabilities'), m.total_liabilities);
+        animateNumber(document.getElementById('cardIncome'), m.income);
+        animateNumber(document.getElementById('cardExpense'), m.actual_expense);
+        if (m.total_liabilities > 0) {
+            document.getElementById('cardAssetsSub').textContent = `负债比 ${(m.total_assets/m.total_liabilities).toFixed(2)}x`;
+            document.getElementById('cardLiabilitiesSub').textContent = `占总资产 ${((m.total_liabilities/m.total_assets)*100).toFixed(1)}%`;
+        }
+        if (m.income != null) {
+            document.getElementById('cardIncomeSub').textContent = m.planned_expense != null
+                ? (m.income > 0 ? '储蓄率 ' + (((m.income - m.actual_expense)/m.income)*100).toFixed(0) + '%' : '实际收入')
+                : '实际收入';
+        }
+        const sub = document.getElementById('cardBudgetSub');
+        if (m.actual_expense != null && m.planned_expense != null) {
+            const d = m.actual_expense - m.planned_expense;
+            sub.className = 'sub ' + (d > 0 ? 'down' : 'up');
+            sub.textContent = d > 0 ? '超预算 ' + fmt(Math.abs(d)) : '节余 ' + fmt(Math.abs(d));
+        } else { sub.className = 'sub'; sub.textContent = m.planned_expense != null ? '计划支出 ' + fmt(m.planned_expense) : ''; }
+    }
+
+    function animateNumber(el, target) {
+        if (target == null || isNaN(target)) { el.textContent = '--'; return; }
+        const dur = 700, start = performance.now();
+        el.classList.remove('counting');
+        function tick(now) {
+            const p = Math.min((now - start) / dur, 1), e = 1 - Math.pow(1 - p, 3);
+            el.textContent = fmt(target * e);
+            if (p < 1) requestAnimationFrame(tick);
+            else { el.textContent = fmt(target); el.classList.add('counting'); }
+        }
+        requestAnimationFrame(tick);
+    }
+
+    // ======================================================
+    //  Dashboard Charts
+    // ======================================================
+    const chartTheme = { backgroundColor: 'transparent', textStyle: {color:'#6b6560',fontFamily:"'Inter','PingFang SC','Microsoft YaHei',sans-serif",fontSize:12}, legend: {textStyle:{color:'#6b6560',fontSize:11}} };
+    const chartGrid = { left: 56, right: 16, top: 8, bottom: 40 };
+    const chartAxisLabel = { color: '#a39e99', fontSize: 11 };
+
+    function filterByYears(arr) {
+        const out = [], labels = [];
+        for (let i = 0; i < fullData.months.length; i++) {
+            if (selectedYears.has(fullData.months[i].substring(0, 4))) { labels.push(fullData.months[i]); out.push(arr[i]); }
+        }
+        return { labels, values: out };
+    }
+
+    let _filterCache = null;
+    function getFilteredData() {
+        if (_filterCache) return _filterCache;
+        const nw = filterByYears(fullData.net_worth), ta = filterByYears(fullData.total_assets), tl = filterByYears(fullData.total_liabilities);
+        const inc = filterByYears(fullData.income), exp = filterByYears(fullData.actual_expense), plan = filterByYears(fullData.planned_expense), nwc = filterByYears(fullData.net_worth_change);
+        _filterCache = { nw, ta, tl, inc, exp, plan, nwc }; return _filterCache;
+    }
+
+    function updateCharts() { _filterCache = null; renderTrend(); renderPie(); renderCashflow(); renderMonthly(); }
+
+    function baseAxisChart() {
+        return {
+            tooltip: { trigger:'axis', backgroundColor:'#fff', borderColor:'#e6e2dc', borderWidth:1, textStyle:{color:'#1c1b1a',fontSize:12}, extraCssText:'box-shadow:0 4px 12px rgba(0,0,0,0.06);border-radius:8px;' },
+            legend: { bottom:0, icon:'circle', itemWidth:8, itemHeight:8 },
+            grid: { ...chartGrid, bottom:44 },
+            xAxis: { type:'category', axisLine:{lineStyle:{color:'#e6e2dc'}}, axisTick:{show:false}, axisLabel:{rotate:40,...chartAxisLabel}, splitLine:{show:false} },
+            yAxis: { type:'value', axisLabel:{formatter:v=>fmtShort(v),...chartAxisLabel}, axisLine:{show:false}, axisTick:{show:false}, splitLine:{lineStyle:{color:'#e6e2dc',type:'dashed'}} },
+        };
+    }
+    function axisTooltipHtml(p) {
+        let s = `<div style="font-weight:600;margin-bottom:4px;color:#1c1b1a">${p[0].axisValue}</div>`;
+        p.forEach(i => { s += `<div style="display:flex;justify-content:space-between;gap:24px;font-size:13px"><span>${i.marker} ${i.seriesName}</span><span style="font-family:'JetBrains Mono',monospace">¥${fmt(i.value)}</span></div>`; });
+        return s;
+    }
+
+    function renderTrend() {
+        if (!trendChart) trendChart = echarts.init(document.getElementById('chartTrend'));
+        const { nw, ta, tl } = getFilteredData();
+        document.getElementById('trendBadge').textContent = nw.labels.length + ' 个月';
+        trendChart.setOption({...chartTheme, ...baseAxisChart(),
+            tooltip: {...baseAxisChart().tooltip, formatter: axisTooltipHtml},
+            legend: {...baseAxisChart().legend, data:['净资产','总资产','总负债']},
+            xAxis: {...baseAxisChart().xAxis, data:nw.labels, axisLabel:{...chartAxisLabel, interval: Math.max(0, Math.floor(nw.labels.length / 20))}},
+            series: [
+                {name:'净资产',type:'line',data:nw.values,smooth:true,symbol:'none',lineStyle:{color:'#b88c5e',width:2.5},areaStyle:{color:new echarts.graphic.LinearGradient(0,0,0,1,[{offset:0,color:'rgba(184,140,94,0.20)'},{offset:.5,color:'rgba(184,140,94,0.05)'},{offset:1,color:'rgba(184,140,94,0)'}])}},
+                {name:'总资产',type:'line',data:ta.values,smooth:true,symbol:'none',lineStyle:{color:'#5a8a9e',width:1.5,type:'dashed'}},
+                {name:'总负债',type:'line',data:tl.values,smooth:true,symbol:'none',lineStyle:{color:'#c65d4a',width:1.5,type:'dashed'}},
+            ]}, true);
+    }
+
+    function renderPie() {
+        if (!pieChart) pieChart = echarts.init(document.getElementById('chartPie'));
+        const m = fullData.monthly[fullData.latest_idx]; if (!m) return;
+        const items = Object.entries(m.assets).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1]);
+        const total = items.reduce((s,[,v])=>s+v,0), main=[], other=[];
+        for (const [k,v] of items) { if (v/total >= 0.015) main.push({name:k,value:v}); else other.push({name:k,value:v}); }
+        if (other.length > 0) main.push({name:'其他',value:other.reduce((s,x)=>s+x.value,0)});
+        pieChart.setOption({...chartTheme,
+            tooltip: {trigger:'item',backgroundColor:'#fff',borderColor:'#e6e2dc',borderWidth:1,textStyle:{color:'#1c1b1a'},extraCssText:'box-shadow:0 4px 12px rgba(0,0,0,0.06);border-radius:8px;',formatter:p=>`<strong>${p.name}</strong><br/>¥${fmtRaw(p.value)} (${p.percent}%)`},
+            color:['#b88c5e','#5a8a9e','#3a9d5e','#8a7ca0','#c65d4a','#c4a87a','#7aafb8','#d4a06a','#a39e99'],
+            series:[{type:'pie',radius:['48%','72%'],center:['50%','46%'],avoidLabelOverlap:true,padAngle:1.5,itemStyle:{borderRadius:4,borderColor:'#fff',borderWidth:2},label:{show:true,color:'#6b6560',fontSize:11,formatter:p=>`${p.name}\n${p.percent}%`,lineHeight:16},labelLine:{lineStyle:{color:'#d4d0ca'}},emphasis:{itemStyle:{shadowBlur:10,shadowColor:'rgba(184,140,94,0.15)'}},data:main}],
+            graphic:[{type:'text',left:'center',top:'41%',style:{text:`¥${fmtShort(total)}`,textAlign:'center',fill:'#1c1b1a',fontFamily:"'Inter',sans-serif",fontSize:18,fontWeight:600}}]}, true);
+    }
+
+    function renderCashflow() {
+        if (!cashflowChart) cashflowChart = echarts.init(document.getElementById('chartCashflow'));
+        const { inc, exp, plan } = getFilteredData();
+        cashflowChart.setOption({...chartTheme, ...baseAxisChart(),
+            tooltip:{...baseAxisChart().tooltip, formatter:axisTooltipHtml},
+            legend:{...baseAxisChart().legend, data:['收入','实际支出','计划支出']},
+            xAxis:{...baseAxisChart().xAxis, data:inc.labels, axisLabel:{...chartAxisLabel, interval:Math.max(0,Math.floor(inc.labels.length/20))}},
+            series:[
+                {name:'收入',type:'bar',data:inc.values,barWidth:'36%',itemStyle:{color:new echarts.graphic.LinearGradient(0,0,0,1,[{offset:0,color:'#3a9d5e'},{offset:1,color:'rgba(58,157,94,0.25)'}]),borderRadius:[4,4,0,0]}},
+                {name:'实际支出',type:'bar',data:exp.values,barWidth:'36%',itemStyle:{color:new echarts.graphic.LinearGradient(0,0,0,1,[{offset:0,color:'#c65d4a'},{offset:1,color:'rgba(198,93,74,0.25)'}]),borderRadius:[4,4,0,0]}},
+                {name:'计划支出',type:'line',data:plan.values,smooth:true,symbol:'none',lineStyle:{color:'#a39e99',width:1.5,type:'dashed'}},
+            ]}, true);
+    }
+
+    function renderMonthly() {
+        if (!monthlyChart) monthlyChart = echarts.init(document.getElementById('chartMonthly'));
+        const { nwc } = getFilteredData();
+        monthlyChart.setOption({...chartTheme, ...baseAxisChart(),
+            tooltip:{...baseAxisChart().tooltip, formatter:p=>{const v=p[0].value;const c=v>=0?'#3a9d5e':'#c65d4a';return `<div style="font-weight:600;margin-bottom:4px;color:#1c1b1a">${p[0].axisValue}</div><div style="display:flex;justify-content:space-between;gap:24px;font-size:13px"><span>${p[0].marker} 净资产变化</span><span style="font-family:'JetBrains Mono',monospace;color:${c}">${v>=0?'+':''}¥${fmt(v)}</span></div>`;}},
+            legend:{...baseAxisChart().legend, data:[]},
+            grid:{...chartGrid,bottom:36},
+            xAxis:{...baseAxisChart().xAxis, data:nwc.labels, axisLabel:{...chartAxisLabel, interval:Math.max(0,Math.floor(nwc.labels.length/20))}},
+            series:[{name:'净资产变化',type:'bar',data:nwc.values.map(v=>v==null?null:Math.round(v*100)/100),barWidth:'50%',itemStyle:{borderRadius:[4,4,0,0],color:p=>p.value>=0?new echarts.graphic.LinearGradient(0,0,0,1,[{offset:0,color:'#3a9d5e'},{offset:1,color:'rgba(58,157,94,0.2)'}]):new echarts.graphic.LinearGradient(0,0,0,1,[{offset:0,color:'#c65d4a'},{offset:1,color:'rgba(198,93,74,0.2)'}])}}]}, true);
+    }
+
+    // ======================================================
+    //  Goals Tab
+    // ======================================================
+    async function loadGoals() {
+        try {
+            const resp = await fetch('/api/goals');
+            const json = await resp.json();
+            if (!json.ok) { console.error('加载目标失败:', json.error); return; }
+            renderGoals(json.data);
+        } catch (e) { console.error('加载目标网络错误', e); }
+    }
+
+    function renderGoals(goals) {
+        const container = document.getElementById('goalsContainer');
+        if (!goals || goals.length === 0) {
+            container.innerHTML = `<div class="goal-empty"><div class="icon">🎯</div><p>还没有财务目标，点击上方添加</p></div>`;
+            return;
+        }
+        container.innerHTML = goals.map(g => {
+            const pct = g.progress || 0;
+            const track = pct >= 100 ? 'on-track' : (pct > 0 ? (pct < 50 ? 'behind' : 'on-track') : 'behind');
+            const metricNames = {net_worth:'净资产',total_assets:'总资产',total_liabilities:'总负债'};
+            return `<div class="goal-card">
+                <div class="goal-card-header">
+                    <h3>${escHtml(g.name)}</h3>
+                    <span class="goal-date">${escHtml(g.target_date) || '未设期限'}</span>
+                </div>
+                <div class="goal-metric">${escHtml(metricNames[g.metric]) || escHtml(g.metric)}</div>
+                <div class="goal-progress-ring">
+                    <canvas width="72" height="72" data-pct="${pct}"></canvas>
+                    <div class="goal-details">
+                        <div class="current">¥${fmtShort(g.current_value)}</div>
+                        <div class="target">目标 ¥${fmtShort(g.target_value)}</div>
+                        <div class="goal-progress-text ${track}">${pct >= 100 ? '✓ 已达成' : '已完成 ' + pct.toFixed(0) + '%'}</div>
+                    </div>
+                </div>
+                <div class="goal-card-actions">
+                    <button class="btn-secondary" onclick="deleteGoal('${g.id}')">删除</button>
+                </div>
+            </div>`;
+        }).join('');
+
+        // Draw progress rings
+        container.querySelectorAll('canvas').forEach(c => {
+            const pct = parseFloat(c.dataset.pct) / 100;
+            const ctx = c.getContext('2d');
+            const cx = 36, cy = 36, r = 30, w = 5;
+            ctx.clearRect(0, 0, 72, 72);
+            ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI*2); ctx.strokeStyle = '#e6e2dc'; ctx.lineWidth = w; ctx.stroke();
+            const color = pct >= 1 ? '#3a9d5e' : '#b88c5e';
+            ctx.beginPath(); ctx.arc(cx, cy, r, -Math.PI/2, -Math.PI/2 + Math.PI*2*Math.min(pct,1)); ctx.strokeStyle = color; ctx.lineWidth = w; ctx.lineCap = 'round'; ctx.stroke();
+            ctx.fillStyle = color; ctx.font = 'bold 14px Inter,sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            ctx.fillText((pct*100).toFixed(0) + '%', cx, cy);
+        });
+    }
+
+    function escHtml(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+    function showGoalModal(data) {
+        editingGoalId = data?.id || null;
+        document.getElementById('goalModalTitle').textContent = data ? '编辑目标' : '添加目标';
+        document.getElementById('goalName').value = data?.name || '';
+        document.getElementById('goalMetric').value = data?.metric || 'net_worth';
+        document.getElementById('goalTarget').value = data?.target_value || '';
+        document.getElementById('goalDate').value = data?.target_date || '';
+        document.getElementById('goalNote').value = data?.note || '';
+        document.getElementById('goalModal').classList.add('open');
+    }
+
+    function closeGoalModal() {
+        document.getElementById('goalModal').classList.remove('open');
+        editingGoalId = null;
+    }
+
+    async function saveGoal() {
+        const body = {
+            name: document.getElementById('goalName').value.trim(),
+            metric: document.getElementById('goalMetric').value,
+            target_value: parseFloat(document.getElementById('goalTarget').value) || 0,
+            target_date: document.getElementById('goalDate').value,
+            note: document.getElementById('goalNote').value.trim(),
+        };
+        if (!body.name || body.target_value <= 0) { alert('请填写名称和目标金额'); return; }
+        const url = editingGoalId ? `/api/goals/${editingGoalId}` : '/api/goals';
+        const method = editingGoalId ? 'PUT' : 'POST';
+        try {
+            const resp = await fetch(url, {method, headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)});
+            const json = await resp.json();
+            if (!json.ok) { alert(json.error || '保存失败'); return; }
+            closeGoalModal(); loadGoals();
+        } catch (e) { alert('网络错误'); }
+    }
+
+    async function deleteGoal(id) {
+        if (!confirm('确定删除这个目标？')) return;
+        try {
+            const resp = await fetch(`/api/goals/${id}`, {method:'DELETE'});
+            if (!resp.ok) {
+                const json = await resp.json().catch(() => ({}));
+                alert(json.error || '删除失败');
+                return;
+            }
+            loadGoals();
+        } catch (e) { console.error('删除目标网络错误', e); }
+    }
+
+    // ======================================================
+    //  Reports Tab
+    // ======================================================
+    let reportYearsLoaded = false;
+
+    function loadReportsTab() {
+        if (reportYearsLoaded) return;
+        if (!fullData) {
+            // 数据尚未加载——等待 loadData 完成后再试
+            let retries = 0;
+            const iv = setInterval(() => {
+                if (fullData) { clearInterval(iv); initReportSelectors(); }
+                if (++retries > 50) clearInterval(iv); // 最多等 5 秒
+            }, 100);
+            return;
+        }
+        initReportSelectors();
+    }
+
+    function initReportSelectors() {
+        const sel = document.getElementById('reportYearSelect');
+        sel.innerHTML = fullData.years.map(y => `<option value="${y}">${y} 年</option>`).join('');
+        sel.value = fullData.years[fullData.years.length - 1];
+        const lm = fullData.monthly[fullData.latest_idx];
+        if (lm) document.getElementById('reportMonthSelect').value = lm.month;
+        // 年份切换时联动更新月份默认值
+        sel.onchange = () => {
+            const y = sel.value;
+            const monthsOfYear = fullData.monthly.filter(m => String(m.year) === y);
+            if (monthsOfYear.length > 0) {
+                document.getElementById('reportMonthSelect').value = monthsOfYear[monthsOfYear.length - 1].month;
+            }
+        };
+        reportYearsLoaded = true;
+    }
+
+    async function loadMonthlyReport() {
+        const year = document.getElementById('reportYearSelect').value;
+        const month = document.getElementById('reportMonthSelect').value;
+        try {
+            const resp = await fetch(`/api/report/monthly?year=${year}&month=${month}`);
+            const json = await resp.json();
+            if (!json.ok) { document.getElementById('reportContent').innerHTML = `<div class="empty-state"><p>${json.error || '暂无数据'}</p></div>`; return; }
+            renderMonthlyReport(json.data);
+        } catch (e) { document.getElementById('reportContent').innerHTML = `<div class="empty-state"><p>网络错误，请稍后重试</p></div>`; }
+    }
+
+    function renderMonthlyReport(r) {
+        const chg = r.net_worth_change;
+        const chgCls = chg != null ? (chg >= 0 ? 'green' : 'red') : '';
+        const chgArrow = chg != null ? (chg >= 0 ? '↑' : '↓') : '';
+        const chgText = chg != null
+            ? `<div class="rsub ${chgCls}">${chgArrow} ${fmt(Math.abs(chg))}</div>`
+            : '';
+
+        let yoyHtml = '';
+        if (r.yoy_net_worth != null && r.yoy_net_worth !== 0) {
+            const yoyPct = ((r.net_worth - r.yoy_net_worth) / r.yoy_net_worth * 100).toFixed(1);
+            yoyHtml = `<div class="report-card"><div class="rlabel">同比（去年同期）</div><div class="rvalue" style="font-size:20px">${fmt(r.yoy_net_worth)}</div><div class="rsub ${yoyPct >= 0 ? 'green' : 'red'}">${yoyPct >= 0 ? '↑' : '↓'} ${Math.abs(yoyPct)}%</div></div>`;
+        }
+
+        document.getElementById('reportContent').innerHTML = `
+            <h3 style="margin-bottom:16px;font-size:16px;font-weight:600">${r.date} 财务报告</h3>
+            <div class="report-grid">
+                <div class="report-card"><div class="rlabel">净资产</div><div class="rvalue">${fmt(r.net_worth)}</div>${chgText}</div>
+                <div class="report-card"><div class="rlabel">收入</div><div class="rvalue">${fmt(r.income)}</div></div>
+                <div class="report-card"><div class="rlabel">支出</div><div class="rvalue">${fmt(r.expense)}</div><div class="rsub ${r.budget_pct != null ? (r.budget_pct > 100 ? 'red' : 'green') : ''}">${r.budget_pct != null ? '预算 ' + r.budget_pct + '%' : ''}</div></div>
+                <div class="report-card"><div class="rlabel">储蓄率</div><div class="rvalue">${r.savings_rate != null ? r.savings_rate + '%' : '--'}</div></div>
+                ${yoyHtml}
+                <div class="report-card"><div class="rlabel">总资产</div><div class="rvalue">${fmt(r.total_assets)}</div></div>
+                <div class="report-card"><div class="rlabel">总负债</div><div class="rvalue">${fmt(r.total_liabilities)}</div></div>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+                <div class="report-detail"><h3>资产 TOP</h3>${tableFromEntries(r.top_assets)}</div>
+                <div class="report-detail"><h3>负债 TOP</h3>${r.top_liabilities.length > 0 ? tableFromEntries(r.top_liabilities) : '<div style="color:var(--text-dim);padding:8px">无负债</div>'}</div>
+            </div>
+        `;
+    }
+
+    function tableFromEntries(arr) {
+        if (!arr || arr.length === 0) return '<div style="color:var(--text-dim);padding:8px">无数据</div>';
+        return `<table class="report-table"><tr><th>账户</th><th style="text-align:right">金额</th></tr>
+            ${arr.map(([k,v]) => `<tr><td>${escHtml(k)}</td><td style="text-align:right;font-family:var(--font-mono)">¥${fmtRaw(v)}</td></tr>`).join('')}</table>`;
+    }
+
+    async function loadAnnualReport() {
+        const year = document.getElementById('reportYearSelect').value;
+        try {
+            const resp = await fetch(`/api/report/annual?year=${year}`);
+            const json = await resp.json();
+            if (!json.ok) { document.getElementById('reportContent').innerHTML = `<div class="empty-state"><p>${json.error || '暂无数据'}</p></div>`; return; }
+            renderAnnualReport(json.data);
+        } catch (e) { document.getElementById('reportContent').innerHTML = `<div class="empty-state"><p>网络错误，请稍后重试</p></div>`; }
+    }
+
+    function renderAnnualReport(r) {
+        const gp = r.nw_growth_pct;
+        let yoyHtml = '';
+        if (r.yoy_nw != null && r.yoy_growth_pct != null) {
+            yoyHtml = `<div class="report-card"><div class="rlabel">去年末净资产</div><div class="rvalue" style="font-size:20px">${fmt(r.yoy_nw)}</div><div class="rsub ${r.yoy_growth_pct >= 0 ? 'green' : 'red'}">同比 ${r.yoy_growth_pct >= 0 ? '↑' : '↓'} ${Math.abs(r.yoy_growth_pct)}%</div></div>`;
+        }
+
+        document.getElementById('reportContent').innerHTML = `
+            <h3 style="margin-bottom:16px;font-size:16px;font-weight:600">${r.year} 年度财务报告</h3>
+            <div class="report-grid">
+                <div class="report-card"><div class="rlabel">年初净资产</div><div class="rvalue">${fmt(r.nw_start)}</div></div>
+                <div class="report-card"><div class="rlabel">年末净资产</div><div class="rvalue">${fmt(r.nw_end)}</div><div class="rsub ${gp >= 0 ? 'green' : 'red'}">${gp >= 0 ? '↑' : '↓'} ${Math.abs(gp)}%</div></div>
+                <div class="report-card"><div class="rlabel">年总收入</div><div class="rvalue">${fmt(r.total_income)}</div></div>
+                <div class="report-card"><div class="rlabel">年总支出</div><div class="rvalue">${fmt(r.total_expense)}</div></div>
+                <div class="report-card"><div class="rlabel">年储蓄</div><div class="rvalue">${fmt(r.savings_total)}</div><div class="rsub ${r.avg_savings_rate >= 30 ? 'green' : 'amber'}">平均储蓄率 ${r.avg_savings_rate}%</div></div>
+                <div class="report-card"><div class="rlabel">预算达标</div><div class="rvalue" style="font-size:22px">${r.budget_compliance}</div><div class="rsub">控制月数/总月数</div></div>
+                ${yoyHtml}
+            </div>
+            <div class="report-detail">
+                <h3>年度亮点</h3>
+                <table class="report-table">
+                    <tr><td>最佳月份</td><td style="font-family:var(--font-mono)">${r.best_month.date}（${fmtNetChange(r.best_month.change)}）</td></tr>
+                    <tr><td>最差月份</td><td style="font-family:var(--font-mono);color:var(--negative)">${r.worst_month.date}（${fmtNetChange(r.worst_month.change)}）</td></tr>
+                    <tr><td>净资产增长</td><td style="font-family:var(--font-mono);color:${gp != null && gp >= 0 ? 'var(--positive)' : 'var(--negative)'}">${fmt(r.nw_growth)}${gp != null ? '（' + (gp>=0?'+':'') + gp + '%）' : ''}</td></tr>
+                </table>
+            </div>
+        `;
+
+        // Load YoY chart
+        loadYoYChart();
+    }
+
+    async function loadYoYChart() {
+        document.getElementById('yoyTitle').style.display = 'block';
+        document.getElementById('yoyCard').style.display = 'block';
+        try {
+            const resp = await fetch('/api/report/yoy');
+            const json = await resp.json();
+            if (!json.ok || !json.data || json.data.length < 2) {
+                document.getElementById('yoyTitle').style.display = 'none';
+                document.getElementById('yoyCard').style.display = 'none';
+                return;
+            }
+            if (!yoyChart) yoyChart = echarts.init(document.getElementById('chartYoY'));
+            const d = json.data;
+            yoyChart.setOption({...chartTheme, ...baseAxisChart(),
+                tooltip: {...baseAxisChart().tooltip, formatter: p => {
+                    const v = p[0].value; return `<div style="font-weight:600;margin-bottom:4px;color:#1c1b1a">${p[0].axisValue}</div><div style="font-size:13px"><span>年末净资产 ¥${fmt(v)}</span></div>`;
+                }},
+                legend: {...baseAxisChart().legend, data:['年末净资产']},
+                xAxis: {...baseAxisChart().xAxis, data: d.map(x => x.year + ''), axisLabel:{...chartAxisLabel}},
+                yAxis: {...baseAxisChart().yAxis, axisLabel:{formatter:v=>fmtShort(v),...chartAxisLabel}},
+                series: [{name:'年末净资产',type:'line',data:d.map(x=>x.nw_end),smooth:true,symbol:'circle',symbolSize:8,lineStyle:{color:'#b88c5e',width:2.5},areaStyle:{color:new echarts.graphic.LinearGradient(0,0,0,1,[{offset:0,color:'rgba(184,140,94,0.20)'},{offset:1,color:'rgba(184,140,94,0)'}])}}]
+            }, true);
+        } catch (e) { console.error('加载同比图表失败', e); }
+    }
+
+    // ======================================================
+    //  Init
+    // ======================================================
+    window.addEventListener('DOMContentLoaded', loadData);
+    let resizeTimer;
+    window.addEventListener('resize', () => {
+        clearTimeout(resizeTimer);
+        resizeTimer = setTimeout(() => { [trendChart, pieChart, cashflowChart, monthlyChart, yoyChart].forEach(c => c?.resize()); }, 120);
+    });
+    // Close modal on overlay click
+    document.getElementById('goalModal').addEventListener('click', e => { if (e.target === e.currentTarget) closeGoalModal(); });
+    </script>
+</body>
+</html>

@@ -1,0 +1,34 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+
+# 虚拟环境
+venv/
+.venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# 项目数据
+config.json
+goals.json
+资产负债.xlsx
+*.xlsx
+
+# 工具文件
+.codegraph/
+.claude/
+.reasonix/
+review-results.json
+
+# 系统文件
+.DS_Store
+Thumbs.db
+desktop.ini

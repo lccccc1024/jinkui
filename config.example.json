@@ -1,0 +1,4 @@
+{
+    "_comment": "金匮配置文件 — 复制为 config.json 并修改 excel_path 为你的实际路径",
+    "excel_path": "C:/Users/FS/OneDrive/文档/资产负债.xlsx"
+}
