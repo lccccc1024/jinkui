@@ -211,5 +211,15 @@ def api_report_yoy():
         return jsonify({"ok": False, "error": str(e)}), 500
 
 
+@app.route("/api/refresh", methods=["POST"])
+def api_refresh():
+    """强制刷新数据缓存（Excel 更新后调用）"""
+    try:
+        parse_excel.refresh_data()
+        return jsonify({"ok": True})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
 if __name__ == "__main__":
     app.run(host="127.0.0.1", port=5000, debug=True)

@@ -12,7 +12,6 @@ import os
 import re
 import math
 from datetime import datetime, timedelta
-from functools import lru_cache
 from typing import Any
 
 import openpyxl
@@ -121,20 +120,32 @@ def _is_skip_name(name: str) -> bool:
     return name in _SKIP_NAMES or "注" in name
 
 
-@lru_cache(maxsize=1)
-def _load_data_cached() -> dict:
-    """带缓存的数据加载，避免重复读取 Excel"""
-    return _load_data_impl()
-
-
-def _clear_cache():
-    """清除缓存（Excel 更新后调用）"""
-    _load_data_cached.cache_clear()
+# --- 带文件修改时间检测的缓存 ---
+_cached_data: dict | None = None
+_cached_mtime: float | None = None
 
 
 def load_data() -> dict:
-    """加载完整数据（带缓存）"""
-    return _load_data_cached()
+    """加载完整数据（自动检测 Excel 文件修改，变化时重载）"""
+    global _cached_data, _cached_mtime
+    try:
+        current_mtime = os.path.getmtime(EXCEL_PATH)
+    except OSError:
+        current_mtime = None
+
+    if _cached_data is not None and current_mtime is not None and current_mtime <= _cached_mtime:
+        return _cached_data
+
+    _cached_data = _load_data_impl()
+    _cached_mtime = current_mtime
+    return _cached_data
+
+
+def refresh_data():
+    """强制刷新缓存（Excel 更新后调用）"""
+    global _cached_data, _cached_mtime
+    _cached_data = None
+    _cached_mtime = None
 
 
 def _load_data_impl() -> dict:

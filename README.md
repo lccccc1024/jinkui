@@ -71,7 +71,9 @@ $env:JINKUI_EXCEL_PATH = "D:\财务\资产负债.xlsx"
 export JINKUI_EXCEL_PATH="/Users/you/Documents/资产负债.xlsx"
 ```
 
-## 技术栈
+## 日常使用
+
+更新 Excel 表格后，刷新浏览器页面即可自动加载最新数据（通过文件修改时间检测）。无需重启 Flask。
 
 - **后端**: Flask + openpyxl
 - **前端**: 原生 HTML/CSS/JS + ECharts
