@@ -282,6 +282,15 @@
             background-size: 200% auto; -webkit-background-clip: text; -webkit-text-fill-color: transparent;
             background-clip: text; animation: shimmer 1.2s ease-out forwards;
         }
+        .header-refresh {
+            background: none; border: none; cursor: pointer;
+            font-size: 18px; color: var(--text-dim); padding: 0 4px;
+            font-family: var(--font-body); line-height: 1;
+            transition: color var(--transition);
+        }
+        .header-refresh:hover { color: var(--accent); }
+        .header-refresh.spinning { animation: spin 0.6s ease-out; }
+        @keyframes spin { 100% { transform: rotate(360deg); } }
         ::-webkit-scrollbar { width: 5px; }
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: var(--border-subtle); border-radius: 3px; }
@@ -298,6 +307,7 @@
         <div class="header-updated">
             <span class="dot"></span>
             <span id="updateTime">加载中…</span>
+            <button class="header-refresh" onclick="refreshData()" title="Excel 更新后刷新数据">↻</button>
         </div>
     </header>
 
@@ -429,6 +439,7 @@
     let selectedYears = new Set();
     let trendChart, pieChart, cashflowChart, monthlyChart, yoyChart;
     let editingGoalId = null;
+    let goalsData = [];
 
     // ======================================================
     //  Tab switching
@@ -675,6 +686,7 @@
 
     function renderGoals(goals) {
         const container = document.getElementById('goalsContainer');
+        goalsData = goals;
         if (!goals || goals.length === 0) {
             container.innerHTML = `<div class="goal-empty"><div class="icon">🎯</div><p>还没有财务目标，点击上方添加</p></div>`;
             return;
@@ -698,6 +710,7 @@
                     </div>
                 </div>
                 <div class="goal-card-actions">
+                    <button class="btn-secondary" onclick="editGoal('${g.id}')">编辑</button>
                     <button class="btn-secondary" onclick="deleteGoal('${g.id}')">删除</button>
                 </div>
             </div>`;
@@ -718,6 +731,11 @@
     }
 
     function escHtml(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+    function editGoal(id) {
+        const goal = goalsData.find(g => g.id === id);
+        if (goal) showGoalModal(goal);
+    }
 
     function showGoalModal(data) {
         editingGoalId = data?.id || null;
@@ -917,6 +935,27 @@
                 series: [{name:'年末净资产',type:'line',data:d.map(x=>x.nw_end),smooth:true,symbol:'circle',symbolSize:8,lineStyle:{color:'#b88c5e',width:2.5},areaStyle:{color:new echarts.graphic.LinearGradient(0,0,0,1,[{offset:0,color:'rgba(184,140,94,0.20)'},{offset:1,color:'rgba(184,140,94,0)'}])}}]
             }, true);
         } catch (e) { console.error('加载同比图表失败', e); }
+    }
+
+    // ======================================================
+    //  Refresh
+    // ======================================================
+    async function refreshData() {
+        const btn = document.querySelector('.header-refresh');
+        btn.classList.add('spinning');
+        try {
+            await fetch('/api/refresh', { method: 'POST' });
+            fullData = null;
+            _filterCache = null;
+            await loadData();
+            const activeTab = document.querySelector('.tab-btn.active');
+            if (activeTab?.dataset.tab === 'goals') loadGoals();
+            if (activeTab?.dataset.tab === 'reports') initReportSelectors();
+        } catch (e) {
+            document.getElementById('updateTime').textContent = '刷新失败';
+        } finally {
+            setTimeout(() => btn.classList.remove('spinning'), 600);
+        }
     }
 
     // ======================================================
