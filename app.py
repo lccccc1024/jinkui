@@ -68,8 +68,6 @@ def api_monthly():
 def api_years():
     """可用年份"""
     try:
-        years = parse_excel.get_available_years()
-        # Also return months per year
         data = parse_excel.load_data()
         year_months = {}
         for m in data["monthly"]:
@@ -77,7 +75,7 @@ def api_years():
             if y not in year_months:
                 year_months[y] = []
             year_months[y].append(m["month"])
-        return jsonify({"ok": True, "years": years, "year_months": year_months})
+        return jsonify({"ok": True, "years": data["years"], "year_months": year_months})
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 500
 

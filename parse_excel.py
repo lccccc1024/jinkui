@@ -11,6 +11,7 @@ import json
 import os
 import re
 import math
+import logging
 from datetime import datetime, timedelta
 from typing import Any
 
@@ -117,7 +118,7 @@ _SKIP_NAMES = {"", "资产", "資產", "负债", "負債", "合计", "合計", "
 
 
 def _is_skip_name(name: str) -> bool:
-    return name in _SKIP_NAMES or "注" in name
+    return name in _SKIP_NAMES or name in ("备注", "注释")
 
 
 # --- 带文件修改时间检测的缓存 ---
@@ -163,7 +164,7 @@ def _load_data_impl() -> dict:
         if s_clean.isascii() and s_clean.isdigit():
             years.append(s_clean)
         else:
-            print(f"⚠️ 跳过非年份工作表: '{s}'")
+            logging.warning("跳过非年份工作表: '%s'", s)
     if not years:
         raise ValueError(
             f"Excel 中没有可识别的年份工作表（找到: {wb.sheetnames}）"
@@ -333,10 +334,10 @@ def _load_data_impl() -> dict:
     planned_expense_all = [m["planned_expense"] for m in monthly_detail]
     net_worth_change_all = [m["net_worth_change"] for m in monthly_detail]
 
-    # Latest non-None net worth index
+    # Latest non-None net worth index（跳过全零的占位月份）
     latest_idx = -1  # -1 表示无有效数据
     for i in range(len(net_worth_all) - 1, -1, -1):
-        if net_worth_all[i] is not None and net_worth_all[i] > 0:
+        if net_worth_all[i] is not None and (total_assets_all[i] != 0 or total_liabilities_all[i] != 0):
             latest_idx = i
             break
 
